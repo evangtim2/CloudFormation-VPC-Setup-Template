@@ -1,0 +1,191 @@
+Resources:
+  #VPC
+  myVPC:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 176.0.0.0/16
+        Tags:
+          - Key: stack
+            Value: prod
+
+    #IPv6 CidrBlock
+    IPv6CidrBlock:
+      Type: AWS::EC2::VPCCidrBlock
+      Properties:
+        AmazonProvidedIpv6CidrBlock: true
+        VpcId: !Ref myVPC
+
+    #Public Subnet
+    PubSubnet1:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.1.0/23
+        AvailabilityZone: "AZ-1"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: name
+            Value: pubSub1
+
+    PubSubnet2:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.2.0/23
+        AvailabilityZone: "AZ-2"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: name
+            Value: pubSub2
+
+    PubSubnet3:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.3.0/23
+        AvailabilityZone: "AZ-3"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        MapPublicIpOnLaunch: true
+        Tags:
+          - Key: name
+            Value: pubSub3
+
+    # Private Subnet
+    PrivSubnet1:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.4.0/18
+        AvailabilityZone: "AZ-1"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        Tags:
+          - Key: name
+            Value: privSub1
+
+    PrivSubnet2:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.5.0/18
+        AvailabilityZone: "AZ-2"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        Tags:
+          - Key: name
+            Value: privSub2
+
+    PrivSubnet3:
+      Type: AWS::EC2::Subnet
+      DependsOn: IPv6CidrBlock
+      Properties:
+        AssignIpv6AddressOnCreation: true
+        CidrBlock: 176.0.6.0/18
+        AvailabilityZone: "AZ-3"
+        Ipv6CidrBlock: !Select [0, !Cidr [!Select [0, !GetAtt myVPC.Ipv6CidrBlocks], 1, 64]]
+        VpcId: !Ref myVPC
+        Tags:
+          - Key: name
+            Value: privSub3
+
+    # Internet Gateway
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Properties:
+        Tags:
+          - Key: name
+            Value: IG
+
+    GatewayToInternet:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        InternetGatewayId: !Ref InternetGatewayId
+        VpcId: !Ref myVPC
+
+    EgressOnlyInternetGateway:
+      Type: AWS::EC2::EgressOnlyInternetGateway
+      Properties:
+        VpcId: !Ref myVPC
+        ConnectivityType: private
+
+    # Public Routing
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref myVPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        DependsOn: GatewayToInternet
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+        RouteTableId: !Ref PublicRouteTable
+
+    PubSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PubSubnet1
+        RouteTableId: !Ref PublicRouteTable
+
+    PubSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PubSubnet2
+        RouteTableId: !Ref PublicRouteTable
+
+    PubSubnet3RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PubSubnet3
+        RouteTableId: !Ref PublicRouteTable
+
+    # NAT Gateway
+    NatGateway:
+      Type: AWS::EC2::NatGateway
+      DependsOn: NatPublicIP
+      Properties:
+        ConnectivityType: Private
+        SubnetId: !Ref PrivSubnet1
+
+    # Private Routing
+    PrivateRouteTable:
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref myVPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        EgressOnlyInternetGatewayId: !Ref EgressOnlyInternetGateway
+        NatGatewayId: !Ref NatGateway
+        RouteTableId: !Ref PrivateRouteTable
+
+    PrivSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PrivSubnet1
+        RouteTableId: !Ref PrivateRouteTable
+
+    PrivSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PrivSubnet2
+        RouteTableId: !Ref PrivateRouteTable
+
+    PrivSubnet3RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        SubnetId: !Ref PrivSubnet3
+        RouteTableId: !Ref PrivateRouteTable
